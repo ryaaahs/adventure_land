@@ -223,7 +223,6 @@ function send_loot_to_merch() {
 
 function get_mob_targets() {
     let targets = [];
-    
     for (const id in parent.entities) {
         const mob = parent.entities[id];
 

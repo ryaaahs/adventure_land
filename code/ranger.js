@@ -1,6 +1,6 @@
 const merchant = "merchire";
 const party_owner = merchant;
-const party_target = ["pbuffme", "altfire", "merchire"];
+const party_target = ["pbuffme", "ryaaahs", "merchire"];
 const tank = "pbuffme"
 
 let is_waiting_for_tank = false;
