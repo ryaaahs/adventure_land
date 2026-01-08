@@ -240,11 +240,11 @@ let core_merch = setInterval(async () => {
             await access_bank()
             await clear_inventory_to_bank();
             
-            if (character.gold > baseline_gold) {
-                await bank_deposit(character.gold - baseline_gold);
-            } else {
-                await bank_withdraw(baseline_gold - character.gold);
-            }
+            // if (character.gold > baseline_gold) {
+            //     await bank_deposit(character.gold - baseline_gold);
+            // } else {
+            //     await bank_withdraw(baseline_gold - character.gold);
+            // }
 
             // Move back to original location
             await smart_move("bank");
@@ -329,11 +329,11 @@ let core_merch = setInterval(async () => {
                 await access_bank()
                 await clear_inventory_to_bank();
 
-                if (character.gold > baseline_gold) {
-                    await bank_deposit(character.gold - baseline_gold);
-                } else {
-                    await bank_withdraw(baseline_gold - character.gold);
-                }
+                // if (character.gold > baseline_gold) {
+                //     await bank_deposit(character.gold - baseline_gold);
+                // } else {
+                //     await bank_withdraw(baseline_gold - character.gold);
+                // }
 
                 // Move back to original location
                 await smart_move("bank");
@@ -378,11 +378,11 @@ let core_merch = setInterval(async () => {
                 // Move back to original location
                 await smart_move("bank");
                 
-                if (character.gold > baseline_gold) {
-                    await bank_deposit(character.gold - baseline_gold);
-                } else {
-                    await bank_withdraw(baseline_gold - character.gold);
-                }
+                // if (character.gold > baseline_gold) {
+                //     await bank_deposit(character.gold - baseline_gold);
+                // } else {
+                //     await bank_withdraw(baseline_gold - character.gold);
+                // }
 
                 merch_queue.splice(0, 1);
 

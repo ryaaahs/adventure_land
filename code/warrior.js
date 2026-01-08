@@ -48,7 +48,7 @@ load_code("xp_meter");
 
 // If not at farming spot, move character there
 if (character.map != farming_locations[farming_key].map || 
-    (character.real_x != farming_locations[farming_key].x && character.real_y != farming_locations[farming_key].y)) {
+    (character.real_x != farming_locations[farming_key].x || character.real_y != farming_locations[farming_key].y)) {
     smart_move(farming_location);
     if (tank) is_waiting_for_tank = true;
 }
@@ -222,8 +222,8 @@ function send_loot_to_merch() {
 }
 
 function get_mob_targets() {
-    let targets = []
-;
+    let targets = [];
+    
     for (const id in parent.entities) {
         const mob = parent.entities[id];
 
