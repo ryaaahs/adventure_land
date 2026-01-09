@@ -34,7 +34,8 @@ let whitelist_items = [
     "basher",
     "ololipop",
 	"candycanesword",
-	"fireblade"
+	"fireblade",
+    "bataxe"
 ]
 
 add_top_button("real_x", "real_x: " + character.real_x.toFixed(2));
@@ -180,7 +181,7 @@ async function handle_stomp() {
             await equip(locate_item("basher"), "mainhand")
 
             await use_skill("stomp");
-            game_log(`STOMPING`, "#FFA600");  heal(party_member);     
+            game_log(`STOMPING`, "#FFA600");
         }
 
         
@@ -189,6 +190,44 @@ async function handle_stomp() {
     }
 }
 setInterval(handle_stomp, 100);
+
+async function handle_cleave() {
+    try {
+        // fireblade
+        // ololipop
+        // candycanesword
+
+        const mainhand = "ololipop";
+        const offhand = "ololipop";
+
+        if (is_on_cooldown("cleave")) {
+            if (character.slots?.mainhand.name === "bataxe") {
+                await unequip("mainhand");
+                await equip(locate_item(mainhand), "mainhand")
+                await equip(locate_item(offhand), "offhand")
+            }
+            return
+        } 
+
+        if (character.mp >= G.skills.cleave.mp) {
+            if (character.slots?.mainhand === null) {
+                await equip(locate_item(mainhand), "mainhand")
+                await equip(locate_item(offhand), "offhand")
+            }
+
+            await unequip("mainhand");
+            await unequip("offhand");
+
+            await equip(locate_item("bataxe"), "mainhand")
+
+            await use_skill("cleave");
+            game_log(`CLEAVING`, "#FFA600");    
+        }        
+    }  catch (e) {
+        console.log("CLEAVING error: ", e);
+    }
+}
+//setInterval(handle_cleave, 100);
 
 async function handle_agitate() {
     try {
