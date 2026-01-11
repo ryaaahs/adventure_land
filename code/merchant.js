@@ -39,6 +39,13 @@ const party_information = {
 const party_target = Object.keys(party_information)
 //altfire
 
+const RESPAWN_INTERVAL = 15 * 100;
+setInterval(function () { 
+    if (character.rip) { 
+        respawn(); 
+    } 
+}, RESPAWN_INTERVAL);
+
 load_code("merchant_lists");
 load_code("code_cost");
 
@@ -466,7 +473,19 @@ let core_merch = setInterval(async () => {
             merch_state_machine = "crafting"
 
             for (const craftable in crafting_items) {
-                await craft_upgrade(craftable);
+                if (used_slots_length() == character.items.length) {
+                    await smart_move(upgrade_location);
+                    await sell_inventory();
+
+                    // If we are still full inventory after selling, deposit the item
+                    if (used_slots_length() == character.items.length) {
+                        await smart_move("bank");
+                        await bank_store(character.items.length - 1);
+                    }
+                    
+                }
+
+                await craft_upgrade(crafting_items[craftable]);
             }
             merch_queue.splice(0, 1);
 
@@ -957,29 +976,40 @@ async function upgrade_list() {
 }
 
 async function craft_upgrade(crafting_item) {
-	const inventory_size = character.items.length;
-	let base_component_index = locate_item(crafting_item.base.name);
+    try {
+        const inventory_size = character.items.length;
+        let base_component_index = locate_item(crafting_item.base.name);
 
-    if (base_component_index == -1) return;
-    if (character.items[base_component_index]?.q < crafting_item.base.quantity) return;
-    
-    await smart_move(upgrade_location);
+        if (base_component_index == -1) return;
+        if (character.items[base_component_index]?.q < crafting_item.base.quantity) return;
+        
+        await smart_move(upgrade_location);
 
-	for (let i = used_slots_length(); i < inventory_size - 2; i++) {
-		await buy("claw");
-	}
+        for (let i = used_slots_length(); i < inventory_size - 1; i++) {
+            if (used_slots_length() < character.items.length - 1) {
+                await buy(crafting_item.component);
+            }
+        }
 
-	// Leo
-	await smart_move(leo_location);
+        // Leo
+        await smart_move(leo_location);
 
-	for (let i = 0; i < character.items.length; i++) {
-		if (character.items[i]?.name == crafting_item.component) {
-			craft(base_component_index, i);
-		}
-	} 
+        for (let i = 0; i < character.items.length; i++) {
+            if (character.items[i]?.name == crafting_item.component) {
+                craft(base_component_index, i);
+            }
+        } 
 
-	await smart_move(upgrade_location);
-	await upgrade_cycle_upgrade();
+        await smart_move(upgrade_location);
+        await upgrade_cycle_upgrade();
+
+        // Depo
+        await smart_move("bank");
+        await clear_inventory_to_bank();
+    } catch (e) {
+        console.error("Error within craft_upgrade: " + e);
+    }
+	
 }
 
 async function upgrade_items_in_list(index) {

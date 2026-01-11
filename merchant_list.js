@@ -8,8 +8,8 @@ const bank_whitelist_items = [
     "broom",
     "iceskates",
     "xmasshoes",
-    "crabclaw",
-    "feather0"
+    //"crabclaw",
+    //"feather0"
 
     // Exchangables
     // "gem0",
@@ -83,7 +83,7 @@ const upgrade_items = [
     "pants",
 
     // Boots
-    //"wingedboots",
+    "wingedboots",
 
     // Weapons
     "firebow",
@@ -268,7 +268,7 @@ const whitelist_items = [
   "xgloves",
   
   //"claw",
-  "cclaw",
+  //"cclaw",
   //"throwingstars",
   //"snowflakes",
   //"firestars",

@@ -6,6 +6,7 @@ const tank = "pbuffme"
 let is_waiting_for_tank = false;
 let is_attacking = true;
 let skill_lock = false;
+let pvp_flag = false;
 
 const farming_locations = {
     "main_three_farm": {x: 1293.65, y: -66.00, map: "main"}
@@ -49,11 +50,18 @@ load_code("gold_meter");
 load_code("xp_meter");
 
 // If not at farming spot, move character there
-if (character.map != farming_locations[farming_key].map || 
-    (character.real_x != farming_locations[farming_key].x || character.real_y != farming_locations[farming_key].y)) {
-    smart_move(farming_location);
-    if (tank) is_waiting_for_tank = true;
+async function check_farm() {
+    if (!pvp_flag && (character.map != farming_locations[farming_key].map || 
+    (character.real_x != farming_locations[farming_key].x || character.real_y != farming_locations[farming_key].y))) {
+        if (tank) {
+            is_waiting_for_tank = true;
+            skill_lock = true
+        }
+        await smart_move(farming_location);
+    }
 }
+check_farm()
+
 
 // Intervals ------------------------------------------------------------------
 
@@ -86,6 +94,13 @@ async function attack_target(targets) {
 
     for (const mob of targets) {
         draw_circle(mob.x, mob.y, mob.range, 3, 0xE8FF00);
+    }
+    
+    if (pvp_flag) {
+        move (
+		    character.x + (targets[0].x - character.x) / 2,
+		    character.y + (targets[0].y - character.y) / 2
+	    );
     }
     
     try {
@@ -236,7 +251,7 @@ async function handle_cleave() {
 //setInterval(handle_cleave, 100);
 
 async function handle_agitate() {
-    if (skill_lock) return;
+    if (skill_lock || pvp_flag) return;
 
     try {
         if (!is_on_cooldown("agitate")) {
@@ -273,10 +288,15 @@ function get_mob_targets() {
     for (const id in parent.entities) {
         const mob = parent.entities[id];
 
-        if (!mob || mob.type !== "monster" || mob.dead) continue;
+        if (pvp_flag) {
+            if (mob.type == "character" && (mob.ctype == "merchant" || mob.ctype == "priest")) targets.push(mob);
 
-        if (farming_targets.includes(mob.mtype) || party_target.includes(mob.target) || mob.target === character.name) {
-            targets.push(mob);
+        } else {
+            if (!mob || mob.type !== "monster" || mob.dead) continue;
+
+            if (farming_targets.includes(mob.mtype) || party_target.includes(mob.target) || mob.target === character.name) {
+                targets.push(mob);
+            }
         }
     }
     

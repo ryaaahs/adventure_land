@@ -33,10 +33,14 @@ load_code("gold_meter");
 load_code("xp_meter");
 
 // If not at farming spot, move character there
-if (character.map != farming_locations[farming_key].map || 
+async function check_farm() {
+    if (character.map != farming_locations[farming_key].map || 
     (character.real_x != farming_locations[farming_key].x || character.real_y != farming_locations[farming_key].y)) {
-    smart_move(farming_location);
+        await smart_move(farming_location);
+        side_movement();
+    }
 }
+check_farm()
 
 let whitelist_items = [
 	"tracker",
@@ -55,7 +59,21 @@ let whitelist_items = [
     // "wshoes"
 ]
 
-// Intervals ------------------------------------------------------------------
+// Intervals ------------------------------------------------------------------ 
+
+async function side_movement() {
+    if (!is_attacking || !smart.moving) {
+        await move (
+			character.x - 75,
+			character.y
+		);
+        await move (
+			character.x + 75,
+			character.y
+		);
+    }
+    setTimeout(side_movement, 100);
+} 
 
 const RESPAWN_INTERVAL = 15 * 100; 
 setInterval(function () { 
