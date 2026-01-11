@@ -5,6 +5,7 @@ const tank = "pbuffme"
 
 let is_waiting_for_tank = false;
 let is_attacking = true;
+let skill_lock = false;
 
 const farming_locations = {
     "main_three_farm": {x: 1293.65, y: -66.00, map: "main"}
@@ -111,7 +112,8 @@ setInterval(function(){
 
     if (is_waiting_for_tank) {
         if (get_player(tank)) {
-            is_waiting_for_tank = false
+            is_waiting_for_tank = false;
+            skill_lock = false;
         }
     }
 
@@ -149,6 +151,8 @@ setInterval(handle_elixir, (1000 * 60) * 5);
 
 // Skills handling
 async function handle_stomp() {
+    if (skill_lock) return;
+
     try {
         // fireblade
         // ololipop
@@ -192,6 +196,8 @@ async function handle_stomp() {
 setInterval(handle_stomp, 100);
 
 async function handle_cleave() {
+    if (skill_lock) return;
+
     try {
         // fireblade
         // ololipop
@@ -230,6 +236,8 @@ async function handle_cleave() {
 //setInterval(handle_cleave, 100);
 
 async function handle_agitate() {
+    if (skill_lock) return;
+
     try {
         if (!is_on_cooldown("agitate")) {
             await use_skill("agitate");
@@ -389,6 +397,7 @@ function on_cm(name, data) {
             mp_pot_quantity: get_item_quantity(mp_pot_id),
         })
     } else if (data.message === "touch_christmas_tree") {
+        skill_lock = true;
         goto_christmas_tree();
     }
 }

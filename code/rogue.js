@@ -1,12 +1,13 @@
 const merchant = "merchire";
 const party_owner = merchant;
-const party_target = ["nofreebies", "ryaaahs", "merchire"];
-//altfire
+const party_target = ["pbuffme", "ryaaahs", "merchire"];
+const tank = "pbuffme"
 
+let is_waiting_for_tank = false;
 let is_attacking = true;
 
 const farming_locations = {
-    "main_three_farm": {x: 1312.20, y: -99.96, map: "main"}
+    "main_three_farm": {x: 1293.65, y: -66.00, map: "main"}
 }
 const hunting_lists = {
     "main_three_farm": ["spider", "bigbird", "scorpion"]
@@ -16,12 +17,21 @@ let farming_key = "main_three_farm";
 const farming_location = farming_locations[farming_key];
 let farming_targets = hunting_lists[farming_key];
 
-const elixir = "elixirluck";
+const elixir = "pumpkinspice";
 const potion_minimum_quantity = 1000;
 const mp_pot_id = "mpot1";
 const hp_pot_id = "hpot1";
 
 const pvp_whitelist = [];
+
+let whitelist_items = [
+	"tracker",
+    "hpot0",
+    "hpot1",
+    "mpot0",
+    "mpot1",
+    "pumpkinspice",
+]
 
 add_top_button("real_x", "real_x: " + character.real_x.toFixed(2));
 add_top_button("real_y", "real_y: " + character.real_y.toFixed(2));
@@ -36,42 +46,30 @@ load_code("xp_meter");
 if (character.map != farming_locations[farming_key].map || 
     (character.real_x != farming_locations[farming_key].x || character.real_y != farming_locations[farming_key].y)) {
     smart_move(farming_location);
+    if (tank) is_waiting_for_tank = true;
 }
-
-let whitelist_items = [
-	"tracker",
-    "hpot0",
-    "hpot1",
-    "mpot0",
-    "mpot1",
-    "elixirluck",
-    "luckbooster",
-    "jacko",
-    "rabbitsfoot",
-    // "wattire",
-    // "wgloves",
-    // "wbreeches",
-    // "wcap",
-    // "wshoes"
-]
 
 // Intervals ------------------------------------------------------------------
 
 const RESPAWN_INTERVAL = 15 * 100; 
 setInterval(function () { 
-    if (character.rip) { respawn(); smart_move(farming_location); } 
+    if (character.rip) { 
+        respawn(); 
+        smart_move(farming_location);
+        is_waiting_for_tank = true; 
+    } 
 }, RESPAWN_INTERVAL);
-
-// Loot
-setInterval(function () {
-    loot();
-}, 100);
 
 // Update entity list to remove ghost mobs
 setInterval(() => parent.socket.emit("send_updates", {}), 1000 * 30); 
 
+// Loot loop
+setInterval(function () {
+    if(!tank) loot();
+}, 100);
+
 async function attack_target(targets) { 
-    if (targets.length === 0 || smart.moving) {
+    if (targets.length === 0 || is_waiting_for_tank || smart.moving) {
         is_attacking = false;
         return
     } else {
@@ -85,46 +83,36 @@ async function attack_target(targets) {
     }
     
     try {
-        if (character.hp <= character.max_hp - character.heal + 750) {
-            if (!is_on_cooldown("heal")) {
-                heal(character);
-            }
-        } else if (targets.length >= 1 && is_in_range(targets[0], "attack")) {
-            draw_circle(targets[0].x, targets[0].y, 20, 3, 0xE8FF00); // ranger path
-
+        if (targets.length >= 1 && is_in_range(targets[0], "attack")) {
             if (can_attack(targets[0])) {
-                game_log(`Single Shot`, "#FFA600");
                 await attack(targets[0])
+                // `reduce_cooldown` is used to compensate for ping between the client and server. Utilizing it increases DPS.
+                // However, if you reduce_cooldown too much, you may miss an attack.
+                reduce_cooldown("attack", Math.min(...parent.pings))
             }
         }  
     } catch(e) {
         console.error(e);
     }
-
+       
     setTimeout(attack_target, Math.max(100, parent.next_skill["attack"].getTime() - Date.now()), get_mob_targets());
 }
 attack_target(get_mob_targets()); 
 
 // Combat loop
-setInterval(function(){     
-    check_for_party_hp();
-
-    if (character.hp <= character.max_hp - character.heal + 750) {
-        if (!is_on_cooldown("heal")) {
-            heal(character);
-        }
-    }
-    
+setInterval(function(){        
     check_for_mp()
     check_for_hp()
+
+    if (is_waiting_for_tank) {
+        if (get_player(tank)) {
+            is_waiting_for_tank = false
+        }
+    }
 
     if (!smart.moving) {
         clear_drawings();
         draw_circle(character.x, character.y, character.range, 2, 0xFF0000);
-        
-        if (!is_on_cooldown("darkblessing")) {
-            use_skill("darkblessing");
-        }
     }
 
     if (!is_attacking) {
@@ -133,140 +121,57 @@ setInterval(function(){
 
 }, 1000 * 0.25); // Loops every 1/4 seconds.
 
+async function handle_elixir() {
+    try {
+        if (character.slots?.elixir) return;
+        let elixir_index = locate_item(elixir);
+
+        // Drink the consume x times
+        for (let i = 0; i < 4; i++) {
+            game_log(`Consuming ${elixir}`, "#FFA600");
+            consume(elixir_index)
+        }
+        
+    }  catch (e) {
+        console.log("Consume error: ", e);
+    }
+}
+setInterval(handle_elixir, (1000 * 60) * 5);
+
 // Skills handling
-async function handleAbsorb() {
+async function handle_swiftness() {
     try {
-        // Absorb only works if you're in a party and the skill isn't on cooldown
-        if (!character.party || is_on_cooldown("absorb")) return;
+        players = []
 
-        // Get names of all party members except yourself
-        const allies = Object.keys(get_party()).filter(name => name !== character.name);
-        //if (parent.S?.grinch?.live) allies.push("earthPri");
-        if (!allies.length) return; // No one to protect
+        // Check self
+        if(!character?.s?.rspeed) await use_skill("rspeed", character);
 
-        // Find a monster targeting one of your allies
-        const badMob = Object.values(parent.entities).find(mob =>
-            mob.type === "monster" &&
-            mob.target &&
-            allies.includes(mob.target)
-        );
+        // Check other players
+        for (const id in parent.entities) {
+            const entity = parent.entities[id];
 
-        // If no valid badMob found, stop
-        if (!badMob) return;
+            if (!entity || entity.type !== "character" || entity.dead) continue;
+    
+            if(entity?.s?.rspeed) continue;
+            console.log(entity.name, entity.type)
 
-        // Use absorb on the ally being targeted
-        const ally = get_player(badMob.target);
-        if (!ally || !is_in_range(ally, "absorb")) return;
+            players.push(entity);
+        }
 
-        await use_skill("absorb", ally);
-        game_log(`Absorbing ${badMob.target}`, "#FFA600");
-    } catch (e) {
-        console.log("Absorb error: ", e);
-    }
-}
-setInterval(handleAbsorb, 100);
+        if (players && players.length == 0) return;
 
-async function handle_curse() {
-    try {
-        if (is_on_cooldown("curse")) return;
-
-        // Get all mobs
-        let mobs = Object.values(parent.entities).filter(mob =>
-            mob.type === "monster" &&
-            mob.target
-        );
-
-        // Sort the mobs by hp
-        mobs = mobs.sort((a, b) => {
-            return a.hp > b.hp;
-        }).reverse();
-
-        await use_skill("curse", mobs[0]);
-        game_log(`Cursing ${mobs[0].name}`, "#FFA600");
+        for (const player of players) {
+            await use_skill("rspeed", player);
+            game_log(`Swifting`, "#FFA600");
+        }
+    
     }  catch (e) {
-        console.log("Absorb error: ", e);
+        console.log("Swifting error: ", e);
     }
 }
-setInterval(handle_curse, 100);
-
-async function handle_scare() {
-    try {
-        if (is_on_cooldown("scare")) return;
-
-        // Get all mobs
-        let mobs = Object.values(parent.entities).filter(mob =>
-            mob.type === "monster" &&
-            mob.target === character.name
-        );
-
-        if (mobs.length < 3) return;
-
-        await use_skill("scare");
-        game_log(`Casting Scare`, "#FFA600");
-    }  catch (e) {
-        console.log("Scare error: ", e);
-    }
-}
-//setInterval(handle_scare, 100);
+setInterval(handle_swiftness, 100);
 
 // ------------------------------------------------------------------
-
-// Merchant
-function send_loot_to_merch() {
-    
-    set_message("Send Loot");
-
-    for (let i = 0; i < character.items.length; i++) {
-        if (character.items[i] != null) {
-            if (whitelist_items.includes(character.items[i].name)) continue;
-            if (character.items[i].q) {
-                send_item(merchant, i, character.items[i].q);
-            } else {
-                send_item(merchant, i, 1);
-            }
-            
-        }
-    }
-    send_gold(merchant, character.gold);
-}
-
-async function check_for_party_hp() {
-    // check for allies hp
-    // if hp < 60, spam heal till > 90% then stop
-    if (character.hp < (character.max_hp * 0.2)) {
-        
-        while (true) {
-            if (!is_on_cooldown("partyheal")) {
-                await use_skill("partyheal");
-            }
-
-            if (character.hp > (character.max_hp * 0.9)) break;
-        }
-    }
-
-    for (const member of party_target) {
-        let party_member = get_player(member);
-        if (party_member === null) return;
-		
-        if (party_member.hp < (party_member.max_hp * 0.8)) {
-            if (!is_on_cooldown("heal")) {
-                heal(party_member);
-            }
-        }
-
-        if (party_member.hp < (party_member.max_hp * 0.4)) {
-            while (true) {
-                if (!is_on_cooldown("partyheal")) {
-                    await use_skill("partyheal");
-                }
-
-                party_member = get_player(member);
-
-                if (party_member.hp > (party_member.max_hp * 0.9)) break;
-            }
-        }
-    } 
-}
 
 function send_loot_to_merch() {
     
@@ -288,7 +193,6 @@ function send_loot_to_merch() {
 
 function get_mob_targets() {
     let targets = [];
-    
     for (const id in parent.entities) {
         const mob = parent.entities[id];
 
@@ -304,20 +208,22 @@ function get_mob_targets() {
         b_distance = distance(character, b);
 
         return a_distance - b_distance;
-    }).slice(0, 10)
+    }).slice(0, 5)
 
     return targets;
 }
 
-async function touch_christmas_tree() {
+async function goto_christmas_tree() {
+    if (!is_on_cooldown("charge")) {
+        use_skill("charge");
+    }
     await smart_move(({ x: 48, y: -62, map: "main" }));
 	parent.socket.emit("interaction", {type:"newyear_tree"});
-    await smart_move(farming_location);
-    moving = false
-    if (character.slots?.orb.name === "jacko") {
-        await unequip("orb");
-        await equip(locate_item("rabbitsfoot"), "offhand")
+    if (!is_on_cooldown("charge")) {
+        use_skill("charge");
     }
+    await smart_move(farming_location);
+    is_waiting_for_tank = true;
 }
 
 function check_for_hp() {
@@ -389,7 +295,7 @@ function get_item_quantity(item_name) {
     return quantity;
 }
 
-async function on_cm(name, data) {   
+function on_cm(name, data) {   
 	if (!party_target.includes(name)) {
 		game_log("Unauthorized CM " + name);
 
@@ -414,15 +320,6 @@ async function on_cm(name, data) {
             mp_pot_quantity: get_item_quantity(mp_pot_id),
         })
     } else if (data.message === "touch_christmas_tree") {
-        moving = true;
-        if (!is_on_cooldown("scare")) {
-            if (character.slots?.orb.name === "rabbitsfoot") {
-                await unequip("orb");
-                await equip(locate_item("jacko"), "offhand")
-            }
-            await use_skill("scare");    
-        }
-
-        touch_christmas_tree();
+        goto_christmas_tree();
     }
 }

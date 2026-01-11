@@ -1,4 +1,5 @@
-const party_owner = "ryaaahs";
+const party_owner = "merchire";
+
 const upgrade_location = ({ x: -160, y: -160, map: "main" });
 const shell_location = ({ x: -1550, y: 560, map: "main" });
 const candy_location = ({ x: -25, y: -445, map: "main" });
@@ -7,7 +8,9 @@ const jayson_location = ({ x: -117, y: -196, map: "winterland" });
 const faith_location = ({x: 56, y: -128, map: "winter_inn"});
 const santa_location = ({x: 1210, y: -1578, map: "winterland"}); 
 const bank_floor_two = ({x: -264, y: -411, map: "bank_b"});
-const max_upgrade_item_level = 8;
+const leo_location = {x: 43.5, y: 638, map: character.map};
+
+const max_upgrade_item_level = 6;
 const max_upgrade_item_level_list = 8;  
 const max_compound_item_level = 3; 
 const mp_pot_name = "mpot1"
@@ -19,12 +22,26 @@ const one_minute = one_second * 60;
 const one_hour = one_minute * 60;
 const baseline_gold = 3000000;
 const party_seconds = 30;
-const party_target = ["pbuffme", "altfire", "ryaaahs"];
+const party_information = {
+    pbuffme: {
+        hp_pots: 0,
+        mp_pots: 0
+    },
+    nofreebies: {
+        hp_pots: 0,
+        mp_pots: 0
+    },
+    ryaaahs: {
+        hp_pots: 0,
+        mp_pots: 0
+    }
+}
+const party_target = Object.keys(party_information)
+//altfire
 
 load_code("merchant_lists");
 load_code("code_cost");
 
-const bots_names = Object.keys(bots_context);
 parent.socket.on("secondhands", secondhands_handler);
 
 const ALDATA_KEY = "horsesAteMyBank@42";
@@ -63,6 +80,14 @@ setInterval(function() {
     }
 }, 1000 * party_seconds);
 
+setInterval(() => {
+    if (character.moving || smart.moving) {
+        if (character.stand) close_stand();
+    } else {
+        if (!character.stand) open_stand();
+    }
+}, 100)
+
 function combine_inventory_items() {
     for (let i = 0; i < character.items.length; i++) {
         if (!character.items[i]?.q) continue;
@@ -74,7 +99,6 @@ function combine_inventory_items() {
             if (j === i) continue;
 
             if (character.items[i].name === character.items[j]?.name) {
-                console.log(character.items[i].name, character.items[j]?.name)
                 if (character.items[j]?.q === item_stack_size) continue;
                 if (character.items[i]?.q + character.items[j]?.q <= item_stack_size) {
                     swap(i, j);
@@ -192,6 +216,13 @@ let core_merch = setInterval(async () => {
                 merch_queue.push("exchange_candy1")
             }
 
+            for (let i = 0; i < character.items.length; i++) {
+                for (const craft of Object.keys(crafting_items)) {
+                    if (character.items[i]?.name == craft) {
+                        merch_queue.push("craft");
+                    }
+                }
+            }
 
             if (!character.s.holidayspirit) {
                 merch_queue.push("christmas_tree")
@@ -215,12 +246,10 @@ let core_merch = setInterval(async () => {
             // }
 
             if (merch_queue.length > 0) {
-                if (character.stand) close_stand()
                 merch_state_machine_prev = merch_state_machine;
                 merch_state_machine = merch_queue[0];
             } else {
-                if (character.map !== "bank") {
-                    // || (character.x != upgrade_location.x && character.y != upgrade_location.y)
+                if (character.map !== "main" || (character.x != upgrade_location.x && character.y != upgrade_location.y)) {
                     merch_queue.push("outpost")
                 }
             }
@@ -247,17 +276,15 @@ let core_merch = setInterval(async () => {
             // }
 
             // Move back to original location
-            await smart_move("bank");
+            await smart_move(upgrade_location);
 
             merch_queue.splice(0, 1);
 
             merch_state_machine_prev = merch_state_machine;
             merch_state_machine = "idle"
-            //if (!character.stand) open_stand()
         break
         case "boot":
-        case "loot":
-            if (character.stand) close_stand();
+        case "loot": 
             use_skill("mluck", character);
 
             merch_state_machine_prev = merch_state_machine;
@@ -336,13 +363,12 @@ let core_merch = setInterval(async () => {
                 // }
 
                 // Move back to original location
-                await smart_move("bank");
+                await smart_move(upgrade_location);
 
                 merch_queue.splice(0, 1);
 
                 merch_state_machine_prev = merch_state_machine;
                 merch_state_machine = "idle"
-                //if (character.stand) open_stand()
             } else {
                 merch_queue.splice(0, 1);
 
@@ -376,7 +402,7 @@ let core_merch = setInterval(async () => {
                 await bank_upgrade();
 
                 // Move back to original location
-                await smart_move("bank");
+                await smart_move(upgrade_location);
                 
                 // if (character.gold > baseline_gold) {
                 //     await bank_deposit(character.gold - baseline_gold);
@@ -388,7 +414,6 @@ let core_merch = setInterval(async () => {
 
                 merch_state_machine_prev = merch_state_machine;
                 merch_state_machine = "idle"
-                //open_stand()
 
                 setTimeout(() => {
                     merch_queue.push("loot");
@@ -412,13 +437,13 @@ let core_merch = setInterval(async () => {
                 let hp_pots_needed = 0;
                 let mp_pots_needed = 0;
 
-                for (const bot in bots_context) {
-                    if (bots_context[bot].hp_pots < potion_baseline) {
-                        hp_pots_needed += potion_baseline - bots_context[bot].hp_pots
+                for (const bot in party_information) {
+                    if (party_information[bot].hp_pots < potion_baseline) {
+                        hp_pots_needed += potion_baseline - party_information[bot].hp_pots
                     }
 
-                    if (bots_context[bot].mp_pots < potion_baseline) {
-                        mp_pots_needed += potion_baseline - bots_context[bot].mp_pots
+                    if (party_information[bot].mp_pots < potion_baseline) {
+                        mp_pots_needed += potion_baseline - party_information[bot].mp_pots
                     }
                 }
 
@@ -430,27 +455,39 @@ let core_merch = setInterval(async () => {
                     buy(mp_pot_name, mp_pots_needed - current_mp_pots)
                 }
                 
-                console.log(JSON.stringify(bots_context));
                 provide_potions_to_bots()
             }
         break;
         case "christmas_tree":
             touch_christmas_tree();
         break;
+        case "craft": 
+            merch_state_machine_prev = merch_state_machine;
+            merch_state_machine = "crafting"
+
+            for (const craftable in crafting_items) {
+                await craft_upgrade(craftable);
+            }
+            merch_queue.splice(0, 1);
+
+            merch_state_machine_prev = merch_state_machine;
+            merch_state_machine = "idle"
+        break;
     }
 }, 1000 * 3)
 
-async function touch_christmas_tree() {
-    for (const bot of bots_names) {
-        send_cm(bot, ({message: "touch_christmas_tree"}));
-    }
+async function touch_christmas_tree() { 
+    setTimeout(() => {
+        send_cm(party_target, ({message: "touch_christmas_tree"}));
+    }, 1000 * 30); 
+    
     merch_state_machine_prev = merch_state_machine;
     merch_state_machine = "moving_to_touch_tree"
     game_log(`Moving to tree`);
     await smart_move(({ x: 48, y: -62, map: "main" }));
 	parent.socket.emit("interaction", {type:"newyear_tree"});
     game_log(`Touched tree`);
-    await smart_move("bank");
+    await smart_move(upgrade_location);
 
     merch_queue.splice(0, 1);
 
@@ -495,7 +532,7 @@ async function item_exchange(item_name) {
 
 /// Potion State
 function provide_potions_to_bots(index = 0) {
-    send_cm(bots_names[index], ({message: "location"}))
+    send_cm(party_target[index], ({message: "location"}))
     is_waiting_for_location = true;
     potion_interval = setInterval(provide_pots, 1000, index);
 }   
@@ -552,8 +589,6 @@ async function bank_upgrade() {
         
         while(true) {
             if (G.items[item]?.compound) {
-                console.log(item, item_tier_compound, get_item_info_bank(item, item_tier_compound).length)
-
                 if (get_item_info_bank(item, item_tier_compound).length >= 3) {
                     await get_item_from_bank(item, item_tier_compound);
                     is_pulled = true;
@@ -575,8 +610,6 @@ async function bank_upgrade() {
                     break; 
                 }    
             } else if (G.items[item]?.upgrade) {
-                console.log(item, item_tier_upgrade, get_item_info_bank(item, item_tier_upgrade).length)
-                
                 if (get_item_info_bank(item, item_tier_upgrade).length >= 3) {
                     await get_item_from_bank(item, item_tier_upgrade);
                     is_pulled = true;
@@ -613,7 +646,6 @@ async function combine_inventory_items() {
             if (j === i) continue;
 
             if (character.items[i].name === character.items[j]?.name) {
-                console.log(character.items[i].name, character.items[j]?.name)
                 if (character.items[j]?.q === item_stack_size) continue;
                 if (character.items[i]?.q + character.items[j]?.q <= item_stack_size) {
                     await swap(i, j);
@@ -791,17 +823,17 @@ async function provide_pots(index) {
         let hp_index = locate_item(hp_pot_name);
         let mp_index = locate_item(mp_pot_name);
 
-        use_skill("mluck", get_entity(bots_names[index]));
+        use_skill("mluck", get_entity(party_target[index]));
 
-        if (bots_context[bots_names[index]].hp_pots < potion_baseline && hp_index != -1) {
-            send_item(bots_names[index], hp_index, potion_baseline - bots_context[bots_names[index]].hp_pots);
+        if (party_information[party_target[index]].hp_pots < potion_baseline && hp_index != -1) {
+            send_item(party_target[index], hp_index, potion_baseline - party_information[party_target[index]].hp_pots);
         }
 
-        if (bots_context[bots_names[index]].mp_pots < potion_baseline && mp_index != -1) {
-            send_item(bots_names[index], mp_index, potion_baseline - bots_context[bots_names[index]].mp_pots);
+        if (party_information[party_target[index]].mp_pots < potion_baseline && mp_index != -1) {
+            send_item(party_target[index], mp_index, potion_baseline - party_information[party_target[index]].mp_pots);
         }
        
-        if (index == bots_names.length - 1 && !smart.moving) {
+        if (index == party_target.length - 1 && !smart.moving) {
             
             clearInterval(potion_interval)
            
@@ -811,17 +843,16 @@ async function provide_pots(index) {
             potion_request_awknowledgement = [];
             merch_queue.splice(0, 1) 
 
-            await smart_move("bank");
-            //open_stand()
+            await smart_move(upgrade_location);
             
-        } else if (index < bots_names.length - 1) {
+        } else if (index < party_target.length - 1) {
             clearInterval(potion_interval)
             provide_potions_to_bots(index + 1)
         }
     } else {
         if (!is_waiting_for_location) {
             is_waiting_for_location = true
-            send_cm(bots_names[index], ({message: "location"}))
+            send_cm(party_target[index], ({message: "location"}))
         }
     }
 }
@@ -838,7 +869,7 @@ async function loot_bots(index = 0) {
         return;
     }
 
-    send_cm(bots_names[index], ({message: "location"}))
+    send_cm(party_target[index], ({message: "location"}))
     is_waiting_for_location = true;
     loot_interval = setInterval(check_if_loot, 1000, index);
 }
@@ -850,11 +881,11 @@ async function check_if_loot(index) {
         merch_state_machine_prev = merch_state_machine;
         merch_state_machine = "loot_bot"
 
-        use_skill("mluck", get_entity(bots_names[index])); 
+        use_skill("mluck", get_entity(party_target[index])); 
 
-        send_cm(bots_names[index], ({message: "trade"}))
+        send_cm(party_target[index], ({message: "trade"}))
        
-        if (index == bots_names.length - 1 && !smart.moving) {
+        if (index == party_target.length - 1 && !smart.moving) {
             clearInterval(loot_interval)
 
             merch_state_machine_prev = merch_state_machine;
@@ -862,14 +893,14 @@ async function check_if_loot(index) {
 
             await smart_move(upgrade_location);
 
-        } else if (index < bots_names.length - 1) {
+        } else if (index < party_target.length - 1) {
             clearInterval(loot_interval)
             loot_bots(index + 1)
         }
     } else {
         if (!is_waiting_for_location) {
             is_waiting_for_location = true
-            send_cm(bots_names[index], ({message: "location"}))
+            send_cm(party_target[index], ({message: "location"}))
         }
     }
 }
@@ -925,6 +956,32 @@ async function upgrade_list() {
     }	
 }
 
+async function craft_upgrade(crafting_item) {
+	const inventory_size = character.items.length;
+	let base_component_index = locate_item(crafting_item.base.name);
+
+    if (base_component_index == -1) return;
+    if (character.items[base_component_index]?.q < crafting_item.base.quantity) return;
+    
+    await smart_move(upgrade_location);
+
+	for (let i = used_slots_length(); i < inventory_size - 2; i++) {
+		await buy("claw");
+	}
+
+	// Leo
+	await smart_move(leo_location);
+
+	for (let i = 0; i < character.items.length; i++) {
+		if (character.items[i]?.name == crafting_item.component) {
+			craft(base_component_index, i);
+		}
+	} 
+
+	await smart_move(upgrade_location);
+	await upgrade_cycle_upgrade();
+}
+
 async function upgrade_items_in_list(index) {
     let item_index = null;
     let result = null;
@@ -938,9 +995,7 @@ async function upgrade_items_in_list(index) {
         total_lookup_item_list = list_upgrade.filter((item_name) => item_name === list_upgrade[index]);
 
         if (total_lookup_item_inventory.length >= total_lookup_item_list.length) {
-            console.log(list_upgrade[index])
             if (total_lookup_item_inventory.every((item) => item.level >= max_upgrade_item_level_list)) {
-                console.log(list_upgrade[index])
                 return;
             }
         }
@@ -1095,7 +1150,7 @@ async function gear_upgrade(item_index, max_tier) {
 
 
 async function on_cm(name, data) {   
-	if (!bots_names.includes(name)) {
+	if (!party_target.includes(name)) {
 		game_log("Unauthorized CM " + name);
 
 	} else if (data.message === "location") {
@@ -1114,16 +1169,16 @@ async function on_cm(name, data) {
         accept_party_invite(party_owner)
 
     } else if (data.message === "pot_request") {
-        send_cm(bots_names, ({message: "pot_awknowledgement"}));
+        send_cm(party_target, ({message: "pot_awknowledgement"}));
 
     } else if (data.message === "pot_info") {
         if (!potion_request_awknowledgement.includes(name)) {
-            bots_context[name].hp_pots = data.hp_pot_quantity
-            bots_context[name].mp_pots = data.mp_pot_quantity
+            party_information[name].hp_pots = data.hp_pot_quantity;
+            party_information[name].mp_pots = data.mp_pot_quantity; 
 
             potion_request_awknowledgement.push(name);
 
-            if (potion_request_awknowledgement.length === bots_names.length) {
+            if (potion_request_awknowledgement.length === party_target.length) {
                 merch_queue.push("pots");
             }
 
@@ -1177,7 +1232,6 @@ async function name_gear_upgrade(name) {
 
 async function compress_secondhands() {
     parent.socket.emit("secondhands");
-    console.log("test")
     upgrade_cycle_upgrade();
     await upgrade_cycle_compound();
 }
